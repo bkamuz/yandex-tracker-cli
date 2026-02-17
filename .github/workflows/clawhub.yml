@@ -43,7 +43,7 @@ jobs:
           }
           clawhub login --token "$CLAWHUB_TOKEN"
           sleep 5
-          for attempt in 1 2 3 4 5; do
+          for attempt in 1 2 3 4 5 6 7; do
             VERSION=$(tr -d '\n\r' < version.txt)
             set +e
             out=$(clawhub publish . --slug yandex-tracker-cli --name "Yandex Tracker CLI" --version "$VERSION" --tags "bash,curl,yandex,tracker,cli" 2>&1)
@@ -54,8 +54,10 @@ jobs:
               exit 0
             fi
             if echo "$out" | grep -qi "rate limit"; then
-              echo "Rate limit hit, waiting 60s before retry (attempt $attempt/5)"
-              sleep 60
+              sleep_sec=$((60 * (1 << (attempt - 1))))
+              [ "$sleep_sec" -gt 600 ] && sleep_sec=600
+              echo "Rate limit hit, waiting ${sleep_sec}s before retry (attempt $attempt/7)"
+              sleep "$sleep_sec"
               continue
             fi
             if echo "$out" | grep -q "Version already exists"; then
@@ -67,7 +69,7 @@ jobs:
             fi
             exit 1
           done
-          echo "Publish failed after 5 attempts"
+          echo "Publish failed after 7 attempts"
           exit 1
       - name: Commit version bump
         run: |
@@ -75,4 +77,4 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add _meta.json
-          git diff --staged --quiet || ( git commit -m "chore: bump version to $VERSION" && git push )
+          git diff --staged --quiet || ( git commit -m "chore: bump version to $VERSION [skip ci]" && git push )
