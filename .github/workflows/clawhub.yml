@@ -32,9 +32,36 @@ jobs:
         env:
           CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN }}
         run: |
-          VERSION=$(tr -d '\n\r' < version.txt)
+          bump_next() {
+            local cur=$1
+            IFS=. read -ra P <<< "$cur"
+            i=$((${#P[@]} - 1))
+            P[i]=$((${P[i]} + 1))
+            while (( i > 0 && P[i] > 9 )); do P[i]=0; i=$((i-1)); P[i]=$((${P[i]} + 1)); done
+            (( P[0] > 9 )) && P[0]=0
+            IFS=.; echo "${P[*]}" | tr -d '\n\r'
+          }
           clawhub login --token "$CLAWHUB_TOKEN"
-          clawhub publish . --slug yandex-tracker-cli --name "Yandex Tracker CLI" --version "$VERSION" --tags "bash,curl,yandex,tracker,cli"
+          for attempt in 1 2 3 4 5; do
+            VERSION=$(tr -d '\n\r' < version.txt)
+            set +e
+            out=$(clawhub publish . --slug yandex-tracker-cli --name "Yandex Tracker CLI" --version "$VERSION" --tags "bash,curl,yandex,tracker,cli" 2>&1)
+            code=$?
+            set -e
+            echo "$out"
+            if echo "$out" | grep -q "Version already exists"; then
+              NEW=$(bump_next "$VERSION")
+              echo "Version $VERSION exists, retrying with $NEW"
+              echo "$NEW" > version.txt
+              jq --arg v "$NEW" '.version = $v' _meta.json > _meta.json.tmp && mv _meta.json.tmp _meta.json
+            elif [ "$code" -ne 0 ]; then
+              exit 1
+            else
+              exit 0
+            fi
+          done
+          echo "Publish failed after 5 attempts"
+          exit 1
       - name: Commit version bump
         run: |
           VERSION=$(tr -d '\n\r' < version.txt)
