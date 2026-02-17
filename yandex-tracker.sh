@@ -320,7 +320,7 @@ checklist_add() {
 checklist_complete() {
   local issue_id="$1"
   local item_id="$2"
-  # API v3: no /complete endpoint; use PATCH with [{"text":"...","checked":true}]. We need item text — GET first or pass as 3rd arg.
+  # API v3: no /complete endpoint; use PATCH with {"text":"...","checked":true}. We need item text — GET first or pass as 3rd arg.
   local text
   text=$(curl -sS -H "$AUTH" -H "$ORG" "$BASE_V3/issues/$(urlencode "$issue_id")/checklistItems" \
     | jq -r --arg id "$item_id" '.[] | select(.id == $id) | .text // empty')
@@ -328,7 +328,7 @@ checklist_complete() {
     text="(item)"
   fi
   curl -sS -X PATCH -H "$AUTH" -H "$ORG" -H "Content-Type: application/json" \
-    -d "$(jq -n --arg t "$text" --argjson ch true '[{text: $t, checked: $ch}]')" \
+    -d "$(jq -n --arg t "$text" --argjson ch true '{text: $t, checked: $ch}')" \
     "$BASE_V3/issues/$(urlencode "$issue_id")/checklistItems/$(urlencode "$item_id")"
 }
 
