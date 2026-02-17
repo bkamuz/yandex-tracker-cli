@@ -228,6 +228,31 @@ issue_types_list() {
   curl -sS -H "$AUTH" -H "$ORG" "$BASE/issue-types"
 }
 
+# ---- NEW: Checklist ----
+issue_checklist() {
+  local id="$1"
+  curl -sS -H "$AUTH" -H "$ORG" "$BASE/issues/$(urlencode "$id")/checklist"
+}
+
+checklist_add() {
+  local issue_id="$1"
+  local text="$2"
+  curl -sS -X POST -H "$AUTH" -H "$ORG" -H "Content-Type: application/json" \
+    -d "{\"content\":\"$text\"}" "$BASE/issues/$(urlencode "$issue_id")/checklist"
+}
+
+checklist_complete() {
+  local issue_id="$1"
+  local item_id="$2"
+  curl -sS -X POST -H "$AUTH" -H "$ORG" "$BASE/issues/$(urlencode "$issue_id")/checklist/$(urlencode "$item_id")/complete"
+}
+
+checklist_delete() {
+  local issue_id="$1"
+  local item_id="$2"
+  curl -sS -X DELETE -H "$AUTH" -H "$ORG" "$BASE/issues/$(urlencode "$issue_id")/checklist/$(urlencode "$item_id")"
+}
+
 case "$1" in
   queues) queues ;;
   queue-get) queue_get "$2" ;;
@@ -256,5 +281,9 @@ case "$1" in
   statuses-list) statuses_list ;;
   resolutions-list) resolutions_list ;;
   issue-types-list) issue_types_list ;;
-  *) echo "Usage: $0 {queues|queue-get <key>|queue-fields <key>|issue-get <id>|issue-create <queue> <summary>|issue-update <id>|issue-delete <id>|issue-comment <id> <text>|issue-comment-edit <id> <comment-id> <new-text>|issue-comment-delete <id> <comment-id>|issue-transitions <id>|issue-close <id> <resolution>|issue-worklog <id> <duration> [comment]|issue-attachments <id>|attachment-download <issue-id> <fileId> [output]|attachment-upload <issue-id> <filepath> [comment]|issues-search|projects-list|project-get <id>|project-issues <id>|sprints-list|sprint-get <id>|sprint-issues <id>|users-list|statuses-list|resolutions-list|issue-types-list}" >&2; exit 1 ;;
+  issue-checklist) issue_checklist "$2" ;;
+  checklist-add) shift; checklist_add "$1" "$2" ;;
+  checklist-complete) shift; checklist_complete "$1" "$2" ;;
+  checklist-delete) shift; checklist_delete "$1" "$2" ;;
+  *) echo "Usage: $0 {queues|queue-get <key>|queue-fields <key>|issue-get <id>|issue-create <queue> <summary>|issue-update <id>|issue-delete <id>|issue-comment <id> <text>|issue-comment-edit <id> <comment-id> <new-text>|issue-comment-delete <id> <comment-id>|issue-transitions <id>|issue-close <id> <resolution>|issue-worklog <id> <duration> [comment]|issue-attachments <id>|attachment-download <issue-id> <fileId> [output]|attachment-upload <issue-id> <filepath> [comment]|issues-search|projects-list|project-get <id>|project-issues <id>|sprints-list|sprint-get <id>|sprint-issues <id>|users-list|statuses-list|resolutions-list|issue-types-list|issue-checklist <id>|checklist-add <issue-id> <text>|checklist-complete <issue-id> <item-id>|checklist-delete <issue-id> <item-id>}" >&2; exit 1 ;;
 esac

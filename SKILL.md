@@ -92,6 +92,10 @@ brew install jq       # macOS
 | `statuses-list` | Список всех статусов задач |
 | `resolutions-list` | Список разрешений для закрытия задач |
 | `issue-types-list` | Список типов задач (bug, task, improvement) |
+| `issue-checklist <issue-id>` | Список пунктов чеклиста задачи |
+| `checklist-add <issue-id> <text>` | Добавить пункт в чеклист |
+| `checklist-complete <issue-id> <item-id>` | Отметить пункт как выполненный |
+| `checklist-delete <issue-id> <item-id>` | Удалить пункт чеклиста |
 
 ### Примеры
 
@@ -130,6 +134,16 @@ yandex-tracker issue-attachments BIMLAB-266 | jq .
 yandex-tracker attachment-download BIMLAB-266 abc123 /tmp/downloaded.pdf
 # Загрузить файл в задачу (с комментарием)
 yandex-tracker attachment-upload BIMLAB-266 /path/to/file.pdf "Служебная записка"
+
+# Чеклист (Checklist)
+# Просмотреть чеклист задачи
+yandex-tracker issue-checklist BIMLAB-279 | jq .
+# Добавить пункт
+yandex-tracker checklist-add BIMLAB-279 "Подготовить презентацию"
+# Отметить пункт как выполненный (itemId из вывода issue-checklist)
+yandex-tracker checklist-complete BIMLAB-279 12345
+# Удалить пункт
+yandex-tracker checklist-delete BIMLAB-279 12345
 
 # Спринты (Agile)
 yandex-tracker sprints-list | jq .
