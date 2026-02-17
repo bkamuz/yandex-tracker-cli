@@ -41,6 +41,72 @@ BASE_V3="https://api.tracker.yandex.net/v3"
 AUTH="Authorization: OAuth $TOKEN"
 ORG="X-Org-Id: $ORG_ID"
 
+# ---- Attachment path security: resolve to absolute and check under allowed base ----
+_resolve_absolute() {
+  local path="$1"
+  [[ -z "$path" ]] && return 1
+  [[ "$path" == ~* ]] && path="${HOME}${path:1}"
+  if [[ "$path" != /* ]]; then
+    [[ -z "$PWD" ]] && return 1
+    path="$PWD/$path"
+  fi
+  local result="/"
+  local part
+  while [[ -n "$path" ]]; do
+    path="${path#/}"
+    part="${path%%/*}"
+    path="${path#$part}"
+    path="${path#/}"
+    [[ -z "$part" || "$part" == . ]] && continue
+    if [[ "$part" == .. ]]; then
+      result=$(dirname "$result")
+      continue
+    fi
+    result="${result%/}/$part"
+  done
+  [[ -z "$result" ]] && result="/"
+  echo "$result"
+}
+
+_get_attachment_base() {
+  if [[ -n "${YANDEX_TRACKER_ATTACHMENTS_DIR}" ]]; then
+    local expanded="${YANDEX_TRACKER_ATTACHMENTS_DIR}"
+    [[ "$expanded" == ~* ]] && expanded="${HOME}${expanded:1}"
+    if [[ "$expanded" != /* ]]; then
+      expanded="$PWD/$expanded"
+    fi
+    _resolve_absolute "$expanded"
+  else
+    _resolve_absolute "$PWD"
+  fi
+}
+
+_path_under_base() {
+  local resolved="$1"
+  local base="$2"
+  [[ -z "$resolved" || -z "$base" ]] && return 1
+  [[ "$resolved" == "$base" ]] && return 0
+  [[ "$resolved" == "$base/"* ]] && return 0
+  return 1
+}
+
+_ensure_attachment_path_allowed() {
+  local kind="$1"  # "download" or "upload"
+  local path="$2"
+  local resolved
+  if [[ "${YANDEX_TRACKER_ALLOW_ANY_PATH}" == "1" ]]; then
+    return 0
+  fi
+  resolved=$(_resolve_absolute "$path") || { echo "Error: invalid path: $path" >&2; return 1; }
+  local base
+  base=$(_get_attachment_base) || { echo "Error: could not determine allowed attachment directory" >&2; return 1; }
+  if ! _path_under_base "$resolved" "$base"; then
+    echo "Error: attachment path must be under the allowed directory (current directory or YANDEX_TRACKER_ATTACHMENTS_DIR). Set YANDEX_TRACKER_ALLOW_ANY_PATH=1 to disable (not recommended with AI agents)." >&2
+    return 1
+  fi
+  return 0
+}
+
 urlencode() {
   local s="${1:-}"
   jq -nr --arg s "$s" '$s|@uri'
@@ -136,6 +202,9 @@ attachment_download() {
   local issue_id="$1"
   local file_id="$2"
   local output="${3:-/dev/stdout}"
+  if [[ -n "$output" && "$output" != "/dev/stdout" ]]; then
+    _ensure_attachment_path_allowed "download" "$output" || exit 1
+  fi
   curl -sS -H "$AUTH" -H "$ORG" "$BASE/issues/$(urlencode "$issue_id")/attachments/$(urlencode "$file_id")" -o "$output"
 }
 
@@ -143,6 +212,11 @@ attachment_upload() {
   local issue_id="$1"
   local filepath="$2"
   local comment="${3:-}"
+  if [[ "${YANDEX_TRACKER_ALLOW_ANY_PATH}" != "1" ]]; then
+    _ensure_attachment_path_allowed "upload" "$filepath" || exit 1
+    [[ -f "$filepath" ]] || { echo "Error: file does not exist or is not a regular file: $filepath" >&2; exit 1; }
+    [[ -r "$filepath" ]] || { echo "Error: file is not readable: $filepath" >&2; exit 1; }
+  fi
   local file_name
   file_name=$(basename "$filepath")
   local form_data
