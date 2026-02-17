@@ -37,6 +37,7 @@ if [[ -z "$TOKEN" || -z "$ORG_ID" ]]; then
 fi
 
 BASE="https://api.tracker.yandex.net/v2"
+BASE_V3="https://api.tracker.yandex.net/v3"
 AUTH="Authorization: OAuth $TOKEN"
 ORG="X-Org-Id: $ORG_ID"
 
@@ -228,29 +229,39 @@ issue_types_list() {
   curl -sS -H "$AUTH" -H "$ORG" "$BASE/issue-types"
 }
 
-# ---- NEW: Checklist ----
+# ---- Checklist (API v3 only: /v3/issues/<id>/checklistItems) ----
 issue_checklist() {
   local id="$1"
-  curl -sS -H "$AUTH" -H "$ORG" "$BASE/issues/$(urlencode "$id")/checklist"
+  curl -sS -H "$AUTH" -H "$ORG" "$BASE_V3/issues/$(urlencode "$id")/checklistItems"
 }
 
 checklist_add() {
   local issue_id="$1"
   local text="$2"
+  # API v3: POST body uses "text", not "content"
   curl -sS -X POST -H "$AUTH" -H "$ORG" -H "Content-Type: application/json" \
-    -d "{\"content\":\"$text\"}" "$BASE/issues/$(urlencode "$issue_id")/checklist"
+    -d "$(jq -n --arg t "$text" '{text: $t}')" "$BASE_V3/issues/$(urlencode "$issue_id")/checklistItems"
 }
 
 checklist_complete() {
   local issue_id="$1"
   local item_id="$2"
-  curl -sS -X POST -H "$AUTH" -H "$ORG" "$BASE/issues/$(urlencode "$issue_id")/checklist/$(urlencode "$item_id")/complete"
+  # API v3: no /complete endpoint; use PATCH with [{"text":"...","checked":true}]. We need item text — GET first or pass as 3rd arg.
+  local text
+  text=$(curl -sS -H "$AUTH" -H "$ORG" "$BASE_V3/issues/$(urlencode "$issue_id")/checklistItems" \
+    | jq -r --arg id "$item_id" '.[] | select(.id == $id) | .text // empty')
+  if [[ -z "$text" ]]; then
+    text="(item)"
+  fi
+  curl -sS -X PATCH -H "$AUTH" -H "$ORG" -H "Content-Type: application/json" \
+    -d "$(jq -n --arg t "$text" --argjson ch true '[{text: $t, checked: $ch}]')" \
+    "$BASE_V3/issues/$(urlencode "$issue_id")/checklistItems/$(urlencode "$item_id")"
 }
 
 checklist_delete() {
   local issue_id="$1"
   local item_id="$2"
-  curl -sS -X DELETE -H "$AUTH" -H "$ORG" "$BASE/issues/$(urlencode "$issue_id")/checklist/$(urlencode "$item_id")"
+  curl -sS -X DELETE -H "$AUTH" -H "$ORG" "$BASE_V3/issues/$(urlencode "$issue_id")/checklistItems/$(urlencode "$item_id")"
 }
 
 case "$1" in

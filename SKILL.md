@@ -135,15 +135,15 @@ yandex-tracker attachment-download BIMLAB-266 abc123 /tmp/downloaded.pdf
 # Загрузить файл в задачу (с комментарием)
 yandex-tracker attachment-upload BIMLAB-266 /path/to/file.pdf "Служебная записка"
 
-# Чеклист (Checklist)
-# Просмотреть чеклист задачи
+# Чеклист (Checklist) — API v3 (checklistItems)
+# Просмотреть чеклист задачи (id пунктов — строки, например "5fde5f0a1aee261d********")
 yandex-tracker issue-checklist BIMLAB-279 | jq .
 # Добавить пункт
 yandex-tracker checklist-add BIMLAB-279 "Подготовить презентацию"
-# Отметить пункт как выполненный (itemId из вывода issue-checklist)
-yandex-tracker checklist-complete BIMLAB-279 12345
+# Отметить пункт как выполненный (item-id из вывода issue-checklist)
+yandex-tracker checklist-complete BIMLAB-279 "5fde5f0a1aee261d********"
 # Удалить пункт
-yandex-tracker checklist-delete BIMLAB-279 12345
+yandex-tracker checklist-delete BIMLAB-279 "5fde5f0a1aee261d********"
 
 # Спринты (Agile)
 yandex-tracker sprints-list | jq .
