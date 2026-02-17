@@ -41,6 +41,44 @@ BASE_V3="https://api.tracker.yandex.net/v3"
 AUTH="Authorization: OAuth $TOKEN"
 ORG="X-Org-Id: $ORG_ID"
 
+# ---- First-run: ask user for attachments directory (only when interactive and not yet set) ----
+PREF_FILE="${HOME}/.yandex-tracker-attachments-dir"
+DEFAULT_ATTACHMENTS_DIR="${HOME}/Downloads/YandexTrackerCLI"
+
+ensure_attachment_dir_configured() {
+  [[ -n "${YANDEX_TRACKER_ATTACHMENTS_DIR}" ]] && return 0
+  if [[ -f "$PREF_FILE" && -r "$PREF_FILE" ]]; then
+    read -r YANDEX_TRACKER_ATTACHMENTS_DIR < "$PREF_FILE" || true
+    [[ -n "$YANDEX_TRACKER_ATTACHMENTS_DIR" ]] && export YANDEX_TRACKER_ATTACHMENTS_DIR
+    return 0
+  fi
+  if [[ ! -t 0 ]]; then
+    return 0
+  fi
+  echo "First run: choose folder for attachments (download/upload)."
+  echo "  1) Default: $DEFAULT_ATTACHMENTS_DIR"
+  echo "  2) Enter your own path"
+  printf "Use default? [Y/n]: "
+  read -r reply
+  reply="${reply#"${reply%%[![:space:]]*}"}"
+  reply="${reply%"${reply##*[![:space:]]}"}"
+  if [[ -z "$reply" || "$reply" == [Yy]* ]]; then
+    YANDEX_TRACKER_ATTACHMENTS_DIR="$DEFAULT_ATTACHMENTS_DIR"
+  else
+    printf "Enter path: "
+    read -r YANDEX_TRACKER_ATTACHMENTS_DIR
+    YANDEX_TRACKER_ATTACHMENTS_DIR="${YANDEX_TRACKER_ATTACHMENTS_DIR#"${YANDEX_TRACKER_ATTACHMENTS_DIR%%[![:space:]]*}"}"
+    YANDEX_TRACKER_ATTACHMENTS_DIR="${YANDEX_TRACKER_ATTACHMENTS_DIR%"${YANDEX_TRACKER_ATTACHMENTS_DIR##*[![:space:]]}"}"
+    if [[ -z "$YANDEX_TRACKER_ATTACHMENTS_DIR" ]]; then
+      YANDEX_TRACKER_ATTACHMENTS_DIR="$DEFAULT_ATTACHMENTS_DIR"
+    fi
+  fi
+  [[ "$YANDEX_TRACKER_ATTACHMENTS_DIR" == ~* ]] && YANDEX_TRACKER_ATTACHMENTS_DIR="${HOME}${YANDEX_TRACKER_ATTACHMENTS_DIR:1}"
+  mkdir -p "$YANDEX_TRACKER_ATTACHMENTS_DIR"
+  printf '%s\n' "$YANDEX_TRACKER_ATTACHMENTS_DIR" > "$PREF_FILE"
+  export YANDEX_TRACKER_ATTACHMENTS_DIR
+}
+
 # ---- Attachment path security: resolve to absolute and check under allowed base ----
 _resolve_absolute() {
   local path="$1"
@@ -80,6 +118,7 @@ _get_attachment_base() {
     _resolve_absolute "$PWD"
   fi
 }
+
 
 _path_under_base() {
   local resolved="$1"
@@ -199,6 +238,7 @@ issue_attachments() {
 }
 
 attachment_download() {
+  ensure_attachment_dir_configured
   local issue_id="$1"
   local file_id="$2"
   local output="${3:-/dev/stdout}"
@@ -209,6 +249,7 @@ attachment_download() {
 }
 
 attachment_upload() {
+  ensure_attachment_dir_configured
   local issue_id="$1"
   local filepath="$2"
   local comment="${3:-}"
