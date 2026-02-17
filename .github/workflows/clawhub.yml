@@ -17,25 +17,28 @@ jobs:
       - name: Bump version (each segment 0-9, carry on overflow)
         id: bump
         run: |
-          CUR=$(jq -r '.version' _meta.json)
+          CUR=$(jq -r '.version' _meta.json | tr -d '\n\r')
           IFS=. read -ra P <<< "$CUR"
           i=$((${#P[@]} - 1))
           P[i]=$((${P[i]} + 1))
           while (( i > 0 && P[i] > 9 )); do P[i]=0; i=$((i-1)); P[i]=$((${P[i]} + 1)); done
           (( P[0] > 9 )) && P[0]=0
-          NEW=$(IFS=.; echo "${P[*]}")
+          NEW=$(IFS=.; echo "${P[*]}" | tr -d '\n\r')
           echo "version=$NEW" >> $GITHUB_OUTPUT
+          echo "$NEW" > version.txt
           echo "Bumped $CUR -> $NEW"
           jq --arg v "$NEW" '.version = $v' _meta.json > _meta.json.tmp && mv _meta.json.tmp _meta.json
       - name: Publish to ClawHub
         env:
           CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN }}
         run: |
+          VERSION=$(tr -d '\n\r' < version.txt)
           clawhub login --token "$CLAWHUB_TOKEN"
-          clawhub publish . --slug yandex-tracker-cli --name "Yandex Tracker CLI" --version "${{ steps.bump.outputs.version }}" --tags "bash,curl,yandex,tracker,cli"
+          clawhub publish . --slug yandex-tracker-cli --name "Yandex Tracker CLI" --version "$VERSION" --tags "bash,curl,yandex,tracker,cli"
       - name: Commit version bump
         run: |
+          VERSION=$(tr -d '\n\r' < version.txt)
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add _meta.json
-          git diff --staged --quiet || ( git commit -m "chore: bump version to ${{ steps.bump.outputs.version }}" && git push )
+          git diff --staged --quiet || ( git commit -m "chore: bump version to $VERSION" && git push )
