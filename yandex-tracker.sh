@@ -78,7 +78,7 @@ issue_create() {
     body=$(echo "$base" | jq --argjson extra "$extra" '. + $extra')
   fi
   curl -sS -X POST -H "$AUTH" -H "$ORG" -H "Content-Type: application/json" \
-    -d "$body" "$BASE/issues/_new"
+    -d "$body" "$BASE/issues"
 }
 
 issue_update() {
