@@ -1,0 +1,175 @@
+---
+name: yandex-tracker-cli
+description: CLI for Yandex Tracker (bash + curl). Queues, issues, comments, worklogs, attachments, YQL.
+homepage: https://github.com/bkamuz/yandex-tracker-cli
+metadata:
+  clawdbot:
+    emoji: "📋"
+    requires:
+      env: ["TOKEN", "ORG_ID"]
+      bins: ["curl", "jq"]
+    primaryEnv: "TOKEN"
+    files: ["yandex-tracker.sh"]
+  openclaw:
+    requires:
+      env: ["TOKEN", "ORG_ID"]
+      bins: ["curl", "jq"]
+    primaryEnv: "TOKEN"
+---
+
+# Yandex Tracker CLI Skill
+
+Простой CLI для Yandex Tracker на чистом bash + curl. Работает напрямую через API с правильными заголовками (`X-Org-Id`). Не требует внешних зависимостей кроме `curl` и `jq`.
+
+## Установка
+
+1. Скопируйте скрипт в директорию в PATH:
+```bash
+mkdir -p ~/bin
+cp yandex-tracker.sh ~/bin/yandex-tracker
+chmod +x ~/bin/yandex-tracker
+```
+
+Или создайте симлинк:
+```bash
+ln -s /path/to/skill/yandex-tracker.sh ~/bin/yandex-tracker
+```
+
+2. **Предоставьте credentials**: нужны TOKEN и ORG_ID — либо через переменные окружения, либо через конфигурационный файл (достаточно одного способа). Скрипт обращается к файлу только если TOKEN/ORG_ID не заданы в окружении.
+
+**Вариант A — через переменные окружения (рекомендуется):**
+```bash
+export TOKEN='y0__...'      # OAuth токен (Tracker UI → Settings → Applications → OAuth)
+export ORG_ID='1234...'     # Org ID (DevTools → Network → X-Org-Id)
+```
+Эти переменные можно добавить в `~/.bashrc` или `~/.profile`.
+
+**Вариант B — через конфигурационный файл:**
+Создайте `~/.yandex-tracker-env` (скрипт использует его только если TOKEN/ORG_ID не заданы в окружении):
+```bash
+TOKEN='y0__...'
+ORG_ID='1234...'
+```
+(Старый формат с `TOKEN`/`ORG_ID` также поддерживается для обратной совместимости.)
+
+⚠️ **Безопасность:** Файл конфигурации скрипт **подключает через `source`** (выполняется как shell-код), поэтому предпочтительнее задавать учётные данные переменными окружения. Если используете файл — установите права `chmod 600 ~/.yandex-tracker-env`, чтобы он был доступен только вам.
+
+3. Убедитесь, что `jq` установлен:
+```bash
+sudo apt install jq   # Ubuntu/Debian
+# или
+brew install jq       # macOS
+```
+
+## Использование
+
+### Основные команды
+
+| Команда | Описание |
+|---------|----------|
+| `queues` | Список всех очередей (формат: `key<TAB>name`) |
+| `queue-get <key>` | Детали очереди (JSON) |
+| `queue-fields <key>` | Все поля очереди (включая локальные) |
+| `issue-get <issue-id>` | Получить задачу (формат: `BIMLAB-123`) |
+| `issue-create <queue> <summary>` | Создать задачу. Доп. поля через stdin (JSON) |
+| `issue-update <issue-id>` | Обновить задачу (JSON через stdin) |
+| `issue-delete <issue-id>` | Удалить задачу |
+| `issue-comment <issue-id> <text>` | Добавить комментарий |
+| `issue-comment-edit <issue-id> <comment-id> <new-text>` | Редактировать комментарий |
+| `issue-comment-delete <issue-id> <comment-id>` | Удалить комментарий |
+| `issue-transitions <issue-id>` | Возможные переходы статуса |
+| `issue-close <issue-id> <resolution>` | Закрыть задачу (resolution: `fixed`, `wontFix`, `duplicate` и др.) |
+| `issue-worklog <issue-id> <duration> [comment]` | Добавить worklog (duration: `PT1H30M`) |
+| `issue-attachments <issue-id>` | Список вложений задачи (JSON) |
+| `attachment-download <issue-id> <fileId> [output]` | Скачать файл. Если output не указано — stdout |
+| `attachment-upload <issue-id> <filepath> [comment]` | Загрузить файл в задачу. Опциональный комментарий |
+| `issues-search` | Поиск задач через YQL. Запрос JSON через stdin, например: `{"query":"Queue = BIMLAB AND Status = Open","limit":50}` |
+| `projects-list` | Список всех проектов (JSON) |
+| `project-get <project-id>` | Детали проекта |
+| `project-issues <project-id>` | Список задач проекта |
+| `sprints-list` | Список спринтов (Agile) |
+| `sprint-get <sprint-id>` | Детали спринта |
+| `sprint-issues <sprint-id>` | Задачи в спринте |
+| `users-list` | Список всех пользователей (справочник) |
+| `statuses-list` | Список всех статусов задач |
+| `resolutions-list` | Список разрешений для закрытия задач |
+| `issue-types-list` | Список типов задач (bug, task, improvement) |
+
+### Примеры
+
+```bash
+# Список очередей
+yandex-tracker queues
+
+# Создать задачу с дополнительными полями
+echo '{"priority":"critical","description":"Подробности"}' | yandex-tracker issue-create BIMLAB "Новая задача"
+
+# Добавить комментарий
+yandex-tracker issue-comment BIMLAB-266 "Работаю над этим"
+
+# Добавить spent time
+yandex-tracker issue-worklog BIMLAB-266 PT2H "Исследование"
+
+# Получить возможные переходы (чтобы понять, как закрыть)
+yandex-tracker issue-transitions BIMLAB-266 | jq .
+
+# Обновить задачу (перевести в другую очередь, например)
+echo '{"queue":"RAZRABOTKA"}' | yandex-tracker issue-update BIMLAB-266
+
+# Поиск задач через YQL
+echo '{"query":"Queue = BIMLAB AND Status = Open","limit":20}' | yandex-tracker issues-search | jq .
+
+# Список проектов
+yandex-tracker projects-list | jq .
+
+# Задачи проекта
+yandex-tracker project-issues 104 | jq .
+
+# Вложения (Attachments)
+# Список вложений
+yandex-tracker issue-attachments BIMLAB-266 | jq .
+# Скачать файл (fileId из списка вложений) в указанный путь
+yandex-tracker attachment-download BIMLAB-266 abc123 /tmp/downloaded.pdf
+# Загрузить файл в задачу (с комментарием)
+yandex-tracker attachment-upload BIMLAB-266 /path/to/file.pdf "Служебная записка"
+
+# Спринты (Agile)
+yandex-tracker sprints-list | jq .
+yandex-tracker sprint-issues 42 | jq .
+
+# Справочники
+yandex-tracker users-list | jq .
+yandex-tracker statuses-list | jq .
+yandex-tracker resolutions-list | jq .
+yandex-tracker issue-types-list | jq .
+
+# Редактирование и удаление комментариев
+yandex-tracker issue-comment-edit BIMLAB-266 12345 "Обновлённый текст"
+yandex-tracker issue-comment-delete BIMLAB-266 12345
+```
+
+## Примечания
+
+- **Org-ID for on-premise:** Найдите в DevTools Tracker → Network → любой запрос → заголовок `X-Org-Id`.
+- **Для Cloud Tracker** нужно изменить скрипт, заменив `X-Org-Id` на `X-Cloud-Org-Id`.
+- Токен можно получить в Tracker UI: Settings → Applications → OAuth → Generate new token.
+- Все команды выводят JSON через `jq` для удобной дальнейшей обработки.
+
+## Структура
+
+```
+skills/yandex-tracker-cli/
+├── yandex-tracker        # Исполняемый скрипт
+├── SKILL.md              # Эта документация
+└── ~/.yandex-tracker-env # (опционально, не в репо) Конфиг с TOKEN и ORG_ID
+```
+
+## Limitations
+
+- Нет пагинации (т. первые 100 элементов)
+- Нет продвинутого поиска (`issues_find` можно добавить)
+- Простая валидация аргументов
+
+## License
+
+MIT
