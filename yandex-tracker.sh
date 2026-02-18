@@ -188,7 +188,7 @@ issue_update() {
   local id="$1"
   local payload
   payload=$(cat)
-  curl -sS -X POST -H "$AUTH" -H "$ORG" -H "Content-Type: application/json" \
+  curl -sS -X PATCH -H "$AUTH" -H "$ORG" -H "Content-Type: application/json" \
     -d "$payload" "$BASE/issues/$(urlencode "$id")"
 }
 
