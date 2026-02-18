@@ -1,7 +1,7 @@
 {
   "ownerId": "bkamuz",
   "slug": "yandex-tracker-cli",
-  "version": "1.2.3",
+  "version": "1.2.4",
   "config": {
     "env": {
       "TOKEN": {
