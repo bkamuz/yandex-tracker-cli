@@ -133,14 +133,11 @@ _ensure_attachment_path_allowed() {
   local kind="$1"  # "download" or "upload"
   local path="$2"
   local resolved
-  if [[ "${YANDEX_TRACKER_ALLOW_ANY_PATH}" == "1" ]]; then
-    return 0
-  fi
   resolved=$(_resolve_absolute "$path") || { echo "Error: invalid path: $path" >&2; return 1; }
   local base
   base=$(_get_attachment_base) || { echo "Error: could not determine allowed attachment directory" >&2; return 1; }
   if ! _path_under_base "$resolved" "$base"; then
-    echo "Error: attachment path must be under the allowed directory (current directory or YANDEX_TRACKER_ATTACHMENTS_DIR). Set YANDEX_TRACKER_ALLOW_ANY_PATH=1 to disable (not recommended with AI agents)." >&2
+    echo "Error: attachment path must be under the allowed directory (current directory or YANDEX_TRACKER_ATTACHMENTS_DIR)." >&2
     return 1
   fi
   return 0
@@ -253,11 +250,9 @@ attachment_upload() {
   local issue_id="$1"
   local filepath="$2"
   local comment="${3:-}"
-  if [[ "${YANDEX_TRACKER_ALLOW_ANY_PATH}" != "1" ]]; then
-    _ensure_attachment_path_allowed "upload" "$filepath" || exit 1
-    [[ -f "$filepath" ]] || { echo "Error: file does not exist or is not a regular file: $filepath" >&2; exit 1; }
-    [[ -r "$filepath" ]] || { echo "Error: file is not readable: $filepath" >&2; exit 1; }
-  fi
+  _ensure_attachment_path_allowed "upload" "$filepath" || exit 1
+  [[ -f "$filepath" ]] || { echo "Error: file does not exist or is not a regular file: $filepath" >&2; exit 1; }
+  [[ -r "$filepath" ]] || { echo "Error: file is not readable: $filepath" >&2; exit 1; }
   local file_name
   file_name=$(basename "$filepath")
   local form_data
