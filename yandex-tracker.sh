@@ -305,14 +305,42 @@ sprint_issues() {
   curl -sS -H "$AUTH" -H "$ORG" "$BASE/sprints/$(urlencode "$id")/issues"
 }
 
-# ---- NEW: Search issues via YQL ----
+# ---- NEW: Search issues via YQL (V3) ----
+# Usage: echo '{"query":"assignee = 1130000064009131","perPage":100}' | yandex-tracker issues-search
+# Note: perPage and page are query parameters, not in JSON body.
 issues_search() {
-  # Expect YQL query as JSON via stdin, e.g.:
-  #   {"query":"Queue = BIMLAB AND Status = Open","limit":50}
+  # Read JSON payload from stdin (may contain query, filter, filterId, expand, etc.)
   local payload
   payload=$(cat)
-  curl -sS -X POST -H "$AUTH" -H "$ORG" -H "Content-Type: application/json" \
-    -d "$payload" "$BASE/issues/_search"
+  # We'll pass perPage/page via URL query string if present in payload (pop them)
+  local perPage=""
+  local page=""
+  # Extract perPage and page from payload using jq (if present)
+  if command -v jq >/dev/null; then
+    local pp=$(echo "$payload" | jq -r '.perPage // empty')
+    local pg=$(echo "$payload" | jq -r '.page // empty')
+    if [ -n "$pp" ]; then perPage="?perPage=$pp"; elif [ -n "$pg" ]; then perPage="?perPage=50"; fi
+    # If both present, build query
+    if [ -n "$pp" ] && [ -n "$pg" ]; then
+      perPage="?perPage=$pp&page=$pg"
+    elif [ -z "$pp" ] && [ -n "$pg" ]; then
+      perPage="?perPage=50&page=$pg"
+    fi
+  fi
+  curl -sS -X POST -H "$AUTH" -H "X-Org-ID: $ORG_ID" -H "Content-Type: application/json" \
+    -d "$payload" "$BASE_V3/issues/_search${perPage}"
+}
+
+# ---- NEW: Export issues report (V3) ----
+issues_export() {
+  # Create an export report (XLSX/CSV/XML) of issues.
+  # Expect report definition as JSON via stdin.
+  # Example:
+  #   {"fields":{"summary":"My report","parameters":{"type":"issueFilterExport","format":"xlsx","filter":{"query":"assignee = 1130000064009131"},"fields":["key","summary","status","priority","deadline"]}}}
+  local payload
+  payload=$(cat)
+  curl -sS -X POST -H "$AUTH" -H "X-Org-ID: $ORG_ID" -H "Content-Type: application/json" \
+    -d "$payload" "$BASE_V3/entities/report/"
 }
 
 # ---- NEW: Projects ----
@@ -401,6 +429,7 @@ case "$1" in
   attachment-download) shift; attachment_download "$1" "$2" "$3" ;;
   attachment-upload) shift; attachment_upload "$1" "$2" "$3" ;;
   issues-search) issues_search ;;
+  issues-export) issues_export ;;
   projects-list) projects_list ;;
   project-get) project_get "$2" ;;
   project-issues) project_issues "$2" ;;
@@ -415,5 +444,5 @@ case "$1" in
   checklist-add) shift; checklist_add "$1" "$2" ;;
   checklist-complete) shift; checklist_complete "$1" "$2" ;;
   checklist-delete) shift; checklist_delete "$1" "$2" ;;
-  *) echo "Usage: $0 {queues|queue-get <key>|queue-fields <key>|issue-get <id>|issue-create <queue> <summary>|issue-update <id>|issue-delete <id>|issue-comment <id> <text>|issue-comment-edit <id> <comment-id> <new-text>|issue-comment-delete <id> <comment-id>|issue-transitions <id>|issue-transition <id> <transition-id>|issue-close <id> <resolution>|issue-worklog <id> <duration> [comment]|issue-attachments <id>|attachment-download <issue-id> <fileId> [output]|attachment-upload <issue-id> <filepath> [comment]|issues-search|projects-list|project-get <id>|project-issues <id>|sprints-list|sprint-get <id>|sprint-issues <id>|users-list|statuses-list|resolutions-list|issue-types-list|issue-checklist <id>|checklist-add <issue-id> <text>|checklist-complete <issue-id> <item-id>|checklist-delete <issue-id> <item-id>}" >&2; exit 1 ;;
+  *) echo "Usage: $0 {queues|queue-get <key>|queue-fields <key>|issue-get <id>|issue-create <queue> <summary>|issue-update <id>|issue-delete <id>|issue-comment <id> <text>|issue-comment-edit <id> <comment-id> <new-text>|issue-comment-delete <id> <comment-id>|issue-transitions <id>|issue-transition <id> <transition-id>|issue-close <id> <resolution>|issue-worklog <id> <duration> [comment]|issue-attachments <id>|attachment-download <issue-id> <fileId> [output]|attachment-upload <issue-id> <filepath> [comment]|issues-search|issues-export|projects-list|project-get <id>|project-issues <id>|sprints-list|sprint-get <id>|sprint-issues <id>|users-list|statuses-list|resolutions-list|issue-types-list|issue-checklist <id>|checklist-add <issue-id> <text>|checklist-complete <issue-id> <item-id>|checklist-delete <issue-id> <item-id>}" >&2; exit 1 ;;
 esac
